@@ -16,7 +16,7 @@ type App struct {
 
 	gRPCClient *gRPC.AuthGrpcClient
 	redis      redis.RedisImpl
-	node       *node.NodeClient
+	node       node.NodeImpl
 }
 
 func NewTxApp(config *config.Config) *App {
@@ -34,7 +34,6 @@ func NewTxApp(config *config.Config) *App {
 		panic(err)
 	} else {
 		a.service = service.NewService(a.node, a.redis)
-
 		a.server = server.NewServer(config, a.gRPCClient, a.service)
 	}
 

@@ -1,6 +1,9 @@
 package types
 
-import "strings"
+import (
+	"errors"
+	"strings"
+)
 
 const (
 	FailedVerify = iota
@@ -10,6 +13,18 @@ const (
 var VerifyTokenErrMap = map[int]string{
 	FailedVerify: "Not Existed token at server",
 	Expired:      "Expired Token Login Again",
+}
+
+const (
+	InvalidNodeInfo = iota
+)
+
+var NodeErrMap = map[int]string{
+	InvalidNodeInfo: "Not Valid Chain Name",
+}
+
+func ToNodeErrType(i int) error {
+	return errors.New(NodeErrMap[i])
 }
 
 type header struct {

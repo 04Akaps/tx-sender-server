@@ -1,4 +1,4 @@
-package server
+package gRPC
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	auth "github.com/04Akaps/tx-sender-server/gRPC/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	"log"
 	"net"
 	"time"
 )
@@ -30,6 +31,7 @@ func NewGrpcServer(config *config.Config) error {
 		reflection.Register(s)
 
 		go func() {
+			log.Println("Success To Create GRPC Server", "URL", config.Rpc.Url)
 			if err = s.Serve(lis); err != nil {
 				panic(err)
 			}

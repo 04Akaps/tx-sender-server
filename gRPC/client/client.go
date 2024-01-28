@@ -1,4 +1,4 @@
-package client
+package gRPC
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"github.com/04Akaps/tx-sender-server/gRPC/paseto"
 	auth "github.com/04Akaps/tx-sender-server/gRPC/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"log"
 	"time"
 )
 
@@ -17,16 +19,17 @@ type AuthGrpcClient struct {
 }
 
 func NewGrpcClient(config *config.Config) (*AuthGrpcClient, error) {
-	opts := grpc.EmptyDialOption{}
-
 	c := new(AuthGrpcClient)
 
-	if client, err := grpc.Dial(config.Rpc.Url, opts); err != nil {
+	if client, err := grpc.Dial(config.Rpc.Url, grpc.WithTransportCredentials(insecure.NewCredentials())); err != nil {
 		return nil, err
 	} else {
+
 		c.client = client
 		c.gRPCClient = auth.NewAuthServiceClient(client)
 		c.pasetoMaker = paseto.NewPasetoMaker(config)
+
+		log.Println("Success To Create GRPC Client", "URL", config.Rpc.Url)
 
 		return c, nil
 	}

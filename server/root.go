@@ -31,6 +31,6 @@ func NewServer(config *config.Config, gRPCClient *gRPC.AuthGrpcClient) *Server {
 }
 
 func (s *Server) StartServer() error {
-	log.Println("Start Tx Server")
+	log.Printf("Start Tx Server")
 	return s.engine.Run(s.port)
 }

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -19,10 +20,19 @@ func NewLog(path string) {
 				panic(err)
 			}
 		} else {
+
+			// For log 초기화
+			if f, err = os.Create(path); err != nil {
+				panic(err)
+			}
+
+			logWriter := io.MultiWriter(f, os.Stdout)
+			log.SetOutput(logWriter)
+
 			// set Log Setting
 			log.SetPrefix("Log : ")
-			log.SetFlags(10)
-			log.SetOutput(f)
+			log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile)
+
 		}
 	}
 }

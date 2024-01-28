@@ -29,7 +29,7 @@ func NewGrpcClient(config *config.Config) (*AuthGrpcClient, error) {
 		c.gRPCClient = auth.NewAuthServiceClient(client)
 		c.pasetoMaker = paseto.NewPasetoMaker(config)
 
-		log.Println("Success To Create GRPC Client", "URL", config.Rpc.Url)
+		log.Printf("Success To Create GRPC Client URL : %s", config.Rpc.Url)
 
 		return c, nil
 	}

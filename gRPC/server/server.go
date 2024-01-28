@@ -2,9 +2,11 @@ package gRPC
 
 import (
 	"context"
+	"errors"
 	"github.com/04Akaps/tx-sender-server/config"
 	"github.com/04Akaps/tx-sender-server/gRPC/paseto"
 	auth "github.com/04Akaps/tx-sender-server/gRPC/proto"
+	"github.com/04Akaps/tx-sender-server/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"log"
@@ -31,7 +33,7 @@ func NewGrpcServer(config *config.Config) error {
 		reflection.Register(s)
 
 		go func() {
-			log.Println("Success To Create GRPC Server", "URL", config.Rpc.Url)
+			log.Printf("Success To Create GRPC Server URL : %s", config.Rpc.Url)
 			if err = s.Serve(lis); err != nil {
 				panic(err)
 			}
@@ -59,12 +61,12 @@ func (a *AuthGrpcServer) VerifyAuth(_ context.Context, req *auth.VerifyPasetoTok
 	if authData, ok := a.tokenVerifyMap[token]; !ok {
 		// 데이터가 없는 경우
 		res.Status.Status = []auth.ResponseType{auth.ResponseType_FAILED}
-		return res, nil
+		return res, errors.New(types.VerifyTokenErrMap[types.FailedVerify])
 	} else if authData.ExpireDate < time.Now().Unix() {
 		// 만약 만료가 되었다면, Map을 비워주고, response를 수정해서 내려 준다.
 		delete(a.tokenVerifyMap, token)
 		res.Status.Status = []auth.ResponseType{auth.ResponseType_EXPIRED_DATE}
-		return res, nil
+		return res, errors.New(types.VerifyTokenErrMap[types.Expired])
 	} else {
 		res.Status.Status = []auth.ResponseType{auth.ResponseType_SUCCESS}
 		return res, nil

@@ -5,6 +5,7 @@ import (
 	"github.com/04Akaps/tx-sender-server/cmd/app"
 	"github.com/04Akaps/tx-sender-server/config"
 	gRPC "github.com/04Akaps/tx-sender-server/gRPC/server"
+	"time"
 )
 
 var protoFlag = flag.String("proto", "gRPC/proto/auth.proto", "proto path")
@@ -26,6 +27,8 @@ func main() {
 	if err := gRPC.NewGrpcServer(cfg); err != nil {
 		panic(err)
 	} else {
+		time.Sleep(1e9)
+
 		txApp := app.NewTxApp(cfg)
 		txApp.StartTxApp()
 	}

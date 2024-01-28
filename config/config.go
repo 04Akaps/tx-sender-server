@@ -5,6 +5,11 @@ import (
 	"os"
 )
 
+type EthNode struct {
+	URL   string
+	Chain string
+}
+
 type Config struct {
 	Rpc struct {
 		Url       string
@@ -14,6 +19,15 @@ type Config struct {
 	Server struct {
 		Port string
 	}
+
+	Redis struct {
+		Url      string
+		DB       int
+		User     string
+		Password string
+	}
+
+	Node map[string]EthNode
 }
 
 func NewConfig(path string) *Config {

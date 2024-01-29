@@ -29,7 +29,7 @@ func NewServer(config *config.Config, gRPCClient *gRPC.AuthGrpcClient, service *
 
 	s.setCors()
 
-	newTx(s)
+	newTx(s, gRPCClient, service)
 
 	return s
 

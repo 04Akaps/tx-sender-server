@@ -27,6 +27,10 @@ type NodeClient struct {
 
 type NodeImpl interface {
 	GetCodeAt(chain, address string) ([]byte, error)
+	GetBalance(chain, address string) (*big.Int, error)
+	GetLatestBlockNumber(chain string) (uint64, error)
+	GetBlockByNumber(chain string, number *big.Int) (*types.Block, error)
+	GetTxReceipt(chain string, tx string) (*types.Receipt, error)
 }
 
 func NewNode(config *config.Config) (NodeImpl, error) {

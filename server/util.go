@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	gRPC "github.com/04Akaps/tx-sender-server/gRPC/client"
 	"github.com/04Akaps/tx-sender-server/types"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -52,16 +53,16 @@ func response(c *gin.Context, s int, res interface{}, data ...string) {
 	c.JSON(s, types.NewRes(s, res, data...))
 }
 
-func (s *Server) verifyLogin() gin.HandlerFunc {
+func verifyLogin(gRPCClient *gRPC.AuthGrpcClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		t := s.getAuthorizationToken(c)
+		t := getAuthorizationToken(c)
 		if t == "" {
 			// 로그인이 안되어 있는 경우
 			response(c, http.StatusUnauthorized, nil, errors.New("auth token need").Error())
 			c.Abort()
 		} else {
 			// call to gRPC
-			if _, err := s.gRPCClient.VerifyAuth(t); err != nil {
+			if _, err := gRPCClient.VerifyAuth(t); err != nil {
 				response(c, http.StatusUnauthorized, nil, err.Error())
 				c.Abort()
 			} else {
@@ -71,16 +72,16 @@ func (s *Server) verifyLogin() gin.HandlerFunc {
 	}
 }
 
-func (s *Server) getAddressByToken(c *gin.Context) (string, error) {
-	t := s.getAuthorizationToken(c)
-	if res, err := s.gRPCClient.VerifyAuth(t); err != nil {
+func getAddressByToken(c *gin.Context, gRPCClient *gRPC.AuthGrpcClient) (string, error) {
+	t := getAuthorizationToken(c)
+	if res, err := gRPCClient.VerifyAuth(t); err != nil {
 		return "", err
 	} else {
 		return res.Auth.Address, nil
 	}
 }
 
-func (s *Server) getAuthorizationToken(c *gin.Context) string {
+func getAuthorizationToken(c *gin.Context) string {
 	var token string
 
 	authorization := c.Request.Header.Get("Authorization")

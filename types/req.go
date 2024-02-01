@@ -19,7 +19,10 @@ type TxReceiptReq struct {
 }
 
 type UnSignReq struct {
-	From    string `json:"from"`
-	Address string `json:"address"`
-	Chain   string `json:"chain"`
+	To     string `json:"to"`
+	Chain  string `json:"chain" binding:"required"`
+	ABI    string `json:"abi"`
+	Method string `json:"method"`
+	Args   string `json:"args"`
+	Value  string `json:"value"`
 }

@@ -1,13 +1,18 @@
 package service
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/04Akaps/tx-sender-server/repository/node"
 	"github.com/04Akaps/tx-sender-server/repository/redis"
-	"github.com/04Akaps/tx-sender-server/types"
+	. "github.com/04Akaps/tx-sender-server/types"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	etypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/shopspring/decimal"
 	"log"
 	"math/big"
+	"strings"
 )
 
 type Service struct {
@@ -19,16 +24,63 @@ func NewService(node node.NodeImpl, redis redis.RedisImpl) *Service {
 	return &Service{node, redis}
 }
 
-func (s *Service) UnSignTx(req types.UnSignReq) {
-	if code, err := s.getCode(req.Chain, req.Address); err != nil {
+func (s *Service) UnSignTx(req UnSignReq, from string) error {
+	if code, err := s.getCode(req.Chain, req.To); err != nil {
 		log.Println(err)
+		return err
 	} else {
 		fmt.Println(code)
 
 		if len(code) > 0 {
 			// Contract
+			log.Println("Make Hash For Send To Contract")
+
+			if abiBytes, err := json.Marshal(req.ABI); err != nil {
+				log.Println(err)
+				return err
+			} else if parsedABI, err := abi.JSON(strings.NewReader(string(abiBytes))); err != nil {
+				log.Println(err)
+				return err
+			} else {
+				// TODO
+				// convert method
+				// pack input to method
+			}
+		} else {
+			log.Println("Make Hash For Send Value To EOA")
+
+			if len(req.ABI) != 0 || len(req.Method) != 0 || len(req.Args) != 0 {
+				return errors.New(VerifyTokenErrMap[FailedVerify])
+			} else {
+				if fromBalance, err := s.GetBalance(req.Chain, from); err != nil {
+					return err
+				} else if valueDecimal, err := decimal.NewFromString(req.Value); err != nil {
+					log.Println("Failed to make value decimal")
+					return err
+
+				} else {
+					decimalBalance := decimal.NewFromInt(fromBalance)
+
+					if decimalBalance.Cmp(valueDecimal) < 0 {
+						return errors.New(VerifyTokenErrMap[EnoughBalance])
+					} else if valueDecimal.Cmp(decimal.Zero) == 0 {
+						return errors.New(VerifyTokenErrMap[ZeroValueTransfer])
+					} else if signer, err := s.node.GetSigner(req.Chain); err != nil {
+						log.Println("Failed To Get Signer", err.Error())
+						return err
+					} else if nonce, err := s.node.GetNonce(req.Chain, from); err != nil {
+						log.Println("Failed To Get Nonce", err.Error())
+						return err
+					} else {
+						// get Fee
+					}
+				}
+
+			}
+
 		}
 
+		return nil
 	}
 }
 

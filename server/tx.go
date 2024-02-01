@@ -101,8 +101,10 @@ func (t *tx) unSign(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response(c, http.StatusUnprocessableEntity, nil, err.Error())
+	} else if from, err := getAddressByToken(c, t.gRPCClient); err != nil {
+		response(c, http.StatusUnprocessableEntity, nil, err.Error())
 	} else {
-		t.service.UnSignTx(req)
+		t.service.UnSignTx(req, from)
 	}
 
 }

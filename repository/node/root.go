@@ -17,6 +17,7 @@ type NodeInfo struct {
 	chain     string
 	networkID *big.Int
 	chainID   *big.Int
+	signer    types.Signer
 }
 
 type NodeClient struct {
@@ -31,6 +32,8 @@ type NodeImpl interface {
 	GetLatestBlockNumber(chain string) (uint64, error)
 	GetBlockByNumber(chain string, number *big.Int) (*types.Block, error)
 	GetTxReceipt(chain string, tx string) (*types.Receipt, error)
+	GetSigner(chain string) (types.Signer, error)
+	GetNonce(chain, from string) (uint64, error)
 }
 
 func NewNode(config *config.Config) (NodeImpl, error) {
@@ -54,6 +57,7 @@ func NewNode(config *config.Config) (NodeImpl, error) {
 				chain:     chain,
 				networkID: networkID,
 				chainID:   chainID,
+				signer:    types.NewLondonSigner(chainID),
 			}
 		}
 	}
@@ -74,6 +78,32 @@ func (n *NodeClient) getNodeInfo(chain string) (*NodeInfo, error) {
 		return nil, ToNodeErrType(InvalidNodeInfo)
 	} else {
 		return node, nil
+	}
+}
+
+func (n *NodeClient) getPendingNonce(chain, from string) (uint64, error) {
+	if client, err := n.getClient(chain); err != nil {
+		return 0, err
+	} else if res, err := client.PendingNonceAt(context.Background(), toAddress(from)); err != nil {
+		return 0, err
+	} else {
+		return res, nil
+	}
+}
+
+func (n *NodeClient) GetNonce(chain, from string) (uint64, error) {
+	if nonce, err := n.getPendingNonce(chain, from); err != nil {
+		return 0, err
+	} else {
+		return nonce, nil
+	}
+}
+
+func (n *NodeClient) GetSigner(chain string) (types.Signer, error) {
+	if node, err := n.getNodeInfo(chain); err != nil {
+		return nil, err
+	} else {
+		return node.signer, nil
 	}
 }
 

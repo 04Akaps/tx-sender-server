@@ -8,11 +8,17 @@ import (
 const (
 	FailedVerify = iota
 	Expired
+	ValueRequestFailed
+	EnoughBalance
+	ZeroValueTransfer
 )
 
 var VerifyTokenErrMap = map[int]string{
-	FailedVerify: "Not Existed token at server",
-	Expired:      "Expired Token Login Again",
+	FailedVerify:       "Not Existed token at server",
+	Expired:            "Expired Token Login Again",
+	ValueRequestFailed: "Failed To Send Value Check Request",
+	EnoughBalance:      "Enough From Balance Under Value Transfer",
+	ZeroValueTransfer:  "Try Zero Value Transfer",
 }
 
 const (

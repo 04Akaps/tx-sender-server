@@ -12,12 +12,13 @@ import (
 )
 
 type NodeInfo struct {
-	client    *ethclient.Client
-	url       string
-	chain     string
-	networkID *big.Int
-	chainID   *big.Int
-	signer    types.Signer
+	client          *ethclient.Client
+	url             string
+	chain           string
+	networkID       *big.Int
+	chainID         *big.Int
+	signer          types.Signer
+	defaultGasLimit uint64
 }
 
 type NodeClient struct {
@@ -34,6 +35,10 @@ type NodeImpl interface {
 	GetTxReceipt(chain string, tx string) (*types.Receipt, error)
 	GetSigner(chain string) (types.Signer, error)
 	GetNonce(chain, from string) (uint64, error)
+	GetFeePerGas(chain string) (*big.Int, error)
+	GetBaseFee(chain string) (*big.Int, error)
+	GetChainID(chain string) (*big.Int, error)
+	GetDefaultGasLimit(chain string) (uint64, error)
 }
 
 func NewNode(config *config.Config) (NodeImpl, error) {
@@ -154,6 +159,42 @@ func (n *NodeClient) GetCodeAt(chain, address string) ([]byte, error) {
 		return nil, err
 	} else {
 		return bytes, nil
+	}
+}
+
+func (n *NodeClient) GetFeePerGas(chain string) (*big.Int, error) {
+	if client, err := n.getClient(chain); err != nil {
+		return nil, err
+	} else if res, err := client.SuggestGasTipCap(context.Background()); err != nil {
+		return nil, err
+	} else {
+		return res, nil
+	}
+}
+
+func (n *NodeClient) GetChainID(chain string) (*big.Int, error) {
+	if client, err := n.getNodeInfo(chain); err != nil {
+		return nil, err
+	} else {
+		return client.chainID, nil
+	}
+}
+
+func (n *NodeClient) GetBaseFee(chain string) (*big.Int, error) {
+	if number, err := n.GetLatestBlockNumber(chain); err != nil {
+		return nil, err
+	} else if block, err := n.GetBlockByNumber(chain, big.NewInt(int64(number))); err != nil {
+		return nil, err
+	} else {
+		return block.BaseFee(), nil
+	}
+}
+
+func (n *NodeClient) GetDefaultGasLimit(chain string) (uint64, error) {
+	if client, err := n.getNodeInfo(chain); err != nil {
+		return 0, err
+	} else {
+		return client.defaultGasLimit, nil
 	}
 }
 

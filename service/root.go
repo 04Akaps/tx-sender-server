@@ -3,15 +3,16 @@ package service
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/04Akaps/tx-sender-server/repository/node"
 	"github.com/04Akaps/tx-sender-server/repository/redis"
 	. "github.com/04Akaps/tx-sender-server/types"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	etypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/shopspring/decimal"
 	"log"
 	"math/big"
+	"strconv"
 	"strings"
 )
 
@@ -24,12 +25,11 @@ func NewService(node node.NodeImpl, redis redis.RedisImpl) *Service {
 	return &Service{node, redis}
 }
 
-func (s *Service) UnSignTx(req UnSignReq, from string) error {
+func (s *Service) UnSignTx(req UnSignReq, from string) (common.Hash, error) {
 	if code, err := s.getCode(req.Chain, req.To); err != nil {
 		log.Println(err)
-		return err
+		return common.Hash{}, err
 	} else {
-		fmt.Println(code)
 
 		if len(code) > 0 {
 			// Contract
@@ -37,10 +37,10 @@ func (s *Service) UnSignTx(req UnSignReq, from string) error {
 
 			if abiBytes, err := json.Marshal(req.ABI); err != nil {
 				log.Println(err)
-				return err
+				return common.Hash{}, err
 			} else if parsedABI, err := abi.JSON(strings.NewReader(string(abiBytes))); err != nil {
 				log.Println(err)
-				return err
+				return common.Hash{}, err
 			} else {
 				// TODO
 				// convert method
@@ -50,29 +50,60 @@ func (s *Service) UnSignTx(req UnSignReq, from string) error {
 			log.Println("Make Hash For Send Value To EOA")
 
 			if len(req.ABI) != 0 || len(req.Method) != 0 || len(req.Args) != 0 {
-				return errors.New(VerifyTokenErrMap[FailedVerify])
+				return common.Hash{}, errors.New(VerifyTokenErrMap[FailedVerify])
 			} else {
 				if fromBalance, err := s.GetBalance(req.Chain, from); err != nil {
-					return err
+					return common.Hash{}, err
 				} else if valueDecimal, err := decimal.NewFromString(req.Value); err != nil {
 					log.Println("Failed to make value decimal")
-					return err
+					return common.Hash{}, err
 
 				} else {
 					decimalBalance := decimal.NewFromInt(fromBalance)
 
 					if decimalBalance.Cmp(valueDecimal) < 0 {
-						return errors.New(VerifyTokenErrMap[EnoughBalance])
+						return common.Hash{}, errors.New(VerifyTokenErrMap[EnoughBalance])
 					} else if valueDecimal.Cmp(decimal.Zero) == 0 {
-						return errors.New(VerifyTokenErrMap[ZeroValueTransfer])
+						return common.Hash{}, errors.New(VerifyTokenErrMap[ZeroValueTransfer])
 					} else if signer, err := s.node.GetSigner(req.Chain); err != nil {
 						log.Println("Failed To Get Signer", err.Error())
-						return err
+						return common.Hash{}, err
 					} else if nonce, err := s.node.GetNonce(req.Chain, from); err != nil {
 						log.Println("Failed To Get Nonce", err.Error())
-						return err
-					} else {
+						return common.Hash{}, err
+					} else if perGas, err := s.node.GetFeePerGas(req.Chain); err != nil {
+						log.Println("Failed To Get Fee Per Gas", err.Error())
 						// get Fee
+						return common.Hash{}, err
+					} else if baseFee, err := s.node.GetBaseFee(req.Chain); err != nil {
+						log.Println("Failed To Get BaseFee", err.Error())
+						return common.Hash{}, err
+					} else {
+						valueInt, _ := strconv.Atoi(req.Value)
+						to := common.HexToAddress(req.To)
+
+						dynamicTx := &etypes.DynamicFeeTx{
+							To:        &to,
+							Nonce:     nonce,
+							Value:     big.NewInt(int64(valueInt)),
+							GasFeeCap: perGas.Add(perGas, baseFee),
+							GasTipCap: perGas,
+							Data:      nil,
+							V:         common.Big1,
+							R:         common.Big1,
+							S:         common.Big1,
+						}
+
+						if dynamicTx.Gas, err = s.node.GetDefaultGasLimit(req.Chain); err != nil {
+							log.Println("Failed To Get DefaultGasLimit", err.Error())
+							return common.Hash{}, err
+						} else if dynamicTx.ChainID, err = s.node.GetChainID(req.Chain); err != nil {
+							log.Println("Failed To Get ChainId", err.Error())
+							return common.Hash{}, err
+						} else {
+							tx := etypes.NewTx(dynamicTx)
+							return signer.Hash(tx), nil
+						}
 					}
 				}
 
@@ -80,7 +111,7 @@ func (s *Service) UnSignTx(req UnSignReq, from string) error {
 
 		}
 
-		return nil
+		return common.Hash{}, nil
 	}
 }
 

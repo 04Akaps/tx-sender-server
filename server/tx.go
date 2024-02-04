@@ -103,8 +103,10 @@ func (t *tx) unSign(c *gin.Context) {
 		response(c, http.StatusUnprocessableEntity, nil, err.Error())
 	} else if from, err := getAddressByToken(c, t.gRPCClient); err != nil {
 		response(c, http.StatusUnprocessableEntity, nil, err.Error())
+	} else if res, err := t.service.UnSignTx(req, from); err != nil {
+		response(c, http.StatusInternalServerError, nil, err.Error())
 	} else {
-		t.service.UnSignTx(req, from)
+		response(c, http.StatusOK, res, "")
 	}
 
 }

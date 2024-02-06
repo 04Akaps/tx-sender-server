@@ -39,6 +39,7 @@ type NodeImpl interface {
 	GetBaseFee(chain string) (*big.Int, error)
 	GetChainID(chain string) (*big.Int, error)
 	GetDefaultGasLimit(chain string) (uint64, error)
+	SendTransaction(chain string, tx *types.Transaction) error
 }
 
 func NewNode(config *config.Config) (NodeImpl, error) {
@@ -93,6 +94,16 @@ func (n *NodeClient) getPendingNonce(chain, from string) (uint64, error) {
 		return 0, err
 	} else {
 		return res, nil
+	}
+}
+
+func (n *NodeClient) SendTransaction(chain string, tx *types.Transaction) error {
+	if client, err := n.getClient(chain); err != nil {
+		return err
+	} else if err = client.SendTransaction(context.Background(), tx); err != nil {
+		return err
+	} else {
+		return nil
 	}
 }
 

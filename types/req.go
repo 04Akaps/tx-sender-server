@@ -1,5 +1,7 @@
 package types
 
+import "github.com/ethereum/go-ethereum/common/hexutil"
+
 type LoginReq struct {
 	Address string `form:"address" binding:"required"`
 }
@@ -19,10 +21,14 @@ type TxReceiptReq struct {
 }
 
 type UnSignReq struct {
-	To     string `json:"to"`
-	Chain  string `json:"chain" binding:"required"`
-	ABI    string `json:"abi"`
-	Method string `json:"method"`
-	Args   string `json:"args"`
-	Value  string `json:"value"`
+	To    string `json:"to" binding:"required"`
+	Chain string `json:"chain" binding:"required"`
+	Value string `json:"value" binding:"required"`
+}
+
+type SignedTxReq struct {
+	Chain string        `json:"chain" binding:"required"`
+	Hash  string        `json:"hash" binding:"required"`
+	Sign  hexutil.Bytes `json:"sign" binding:"required"`
+	Tx    string        `json:"tx" bson:"tx"`
 }

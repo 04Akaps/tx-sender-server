@@ -1,19 +1,21 @@
 package service
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/04Akaps/tx-sender-server/repository/node"
 	"github.com/04Akaps/tx-sender-server/repository/redis"
 	. "github.com/04Akaps/tx-sender-server/types"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	etypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/shopspring/decimal"
 	"log"
 	"math/big"
 	"strconv"
-	"strings"
 )
 
 type Service struct {
@@ -26,93 +28,118 @@ func NewService(node node.NodeImpl, redis redis.RedisImpl) *Service {
 }
 
 func (s *Service) UnSignTx(req UnSignReq, from string) (common.Hash, error) {
-	if code, err := s.getCode(req.Chain, req.To); err != nil {
-		log.Println(err)
+	log.Println("Make Hash For Send Value To EOA")
+
+	if fromBalance, err := s.GetBalance(req.Chain, from); err != nil {
+		return common.Hash{}, err
+	} else if valueDecimal, err := decimal.NewFromString(req.Value); err != nil {
+		log.Println("Failed to make value decimal")
 		return common.Hash{}, err
 	} else {
+		decimalBalance := decimal.NewFromInt(fromBalance)
 
-		if len(code) > 0 {
-			// Contract
-			log.Println("Make Hash For Send To Contract")
-
-			if abiBytes, err := json.Marshal(req.ABI); err != nil {
-				log.Println(err)
-				return common.Hash{}, err
-			} else if parsedABI, err := abi.JSON(strings.NewReader(string(abiBytes))); err != nil {
-				log.Println(err)
-				return common.Hash{}, err
-			} else {
-				// TODO
-				// convert method
-				// pack input to method
-			}
+		if decimalBalance.Cmp(valueDecimal) < 0 {
+			return common.Hash{}, errors.New(VerifyTokenErrMap[EnoughBalance])
+		} else if valueDecimal.Cmp(decimal.Zero) == 0 {
+			return common.Hash{}, errors.New(VerifyTokenErrMap[ZeroValueTransfer])
+		} else if signer, err := s.node.GetSigner(req.Chain); err != nil {
+			log.Println("Failed To Get Signer", err.Error())
+			return common.Hash{}, err
+		} else if nonce, err := s.node.GetNonce(req.Chain, from); err != nil {
+			log.Println("Failed To Get Nonce", err.Error())
+			return common.Hash{}, err
+		} else if perGas, err := s.node.GetFeePerGas(req.Chain); err != nil {
+			log.Println("Failed To Get Fee Per Gas", err.Error())
+			// get Fee
+			return common.Hash{}, err
+		} else if baseFee, err := s.node.GetBaseFee(req.Chain); err != nil {
+			log.Println("Failed To Get BaseFee", err.Error())
+			return common.Hash{}, err
 		} else {
-			log.Println("Make Hash For Send Value To EOA")
+			valueInt, _ := strconv.Atoi(req.Value)
+			to := common.HexToAddress(req.To)
 
-			if len(req.ABI) != 0 || len(req.Method) != 0 || len(req.Args) != 0 {
-				return common.Hash{}, errors.New(VerifyTokenErrMap[FailedVerify])
-			} else {
-				if fromBalance, err := s.GetBalance(req.Chain, from); err != nil {
-					return common.Hash{}, err
-				} else if valueDecimal, err := decimal.NewFromString(req.Value); err != nil {
-					log.Println("Failed to make value decimal")
-					return common.Hash{}, err
-
-				} else {
-					decimalBalance := decimal.NewFromInt(fromBalance)
-
-					if decimalBalance.Cmp(valueDecimal) < 0 {
-						return common.Hash{}, errors.New(VerifyTokenErrMap[EnoughBalance])
-					} else if valueDecimal.Cmp(decimal.Zero) == 0 {
-						return common.Hash{}, errors.New(VerifyTokenErrMap[ZeroValueTransfer])
-					} else if signer, err := s.node.GetSigner(req.Chain); err != nil {
-						log.Println("Failed To Get Signer", err.Error())
-						return common.Hash{}, err
-					} else if nonce, err := s.node.GetNonce(req.Chain, from); err != nil {
-						log.Println("Failed To Get Nonce", err.Error())
-						return common.Hash{}, err
-					} else if perGas, err := s.node.GetFeePerGas(req.Chain); err != nil {
-						log.Println("Failed To Get Fee Per Gas", err.Error())
-						// get Fee
-						return common.Hash{}, err
-					} else if baseFee, err := s.node.GetBaseFee(req.Chain); err != nil {
-						log.Println("Failed To Get BaseFee", err.Error())
-						return common.Hash{}, err
-					} else {
-						valueInt, _ := strconv.Atoi(req.Value)
-						to := common.HexToAddress(req.To)
-
-						dynamicTx := &etypes.DynamicFeeTx{
-							To:        &to,
-							Nonce:     nonce,
-							Value:     big.NewInt(int64(valueInt)),
-							GasFeeCap: perGas.Add(perGas, baseFee),
-							GasTipCap: perGas,
-							Data:      nil,
-							V:         common.Big1,
-							R:         common.Big1,
-							S:         common.Big1,
-						}
-
-						if dynamicTx.Gas, err = s.node.GetDefaultGasLimit(req.Chain); err != nil {
-							log.Println("Failed To Get DefaultGasLimit", err.Error())
-							return common.Hash{}, err
-						} else if dynamicTx.ChainID, err = s.node.GetChainID(req.Chain); err != nil {
-							log.Println("Failed To Get ChainId", err.Error())
-							return common.Hash{}, err
-						} else {
-							tx := etypes.NewTx(dynamicTx)
-							return signer.Hash(tx), nil
-						}
-					}
-				}
-
+			dynamicTx := &etypes.DynamicFeeTx{
+				To:        &to,
+				Nonce:     nonce,
+				Value:     big.NewInt(int64(valueInt)),
+				GasFeeCap: perGas.Add(perGas, baseFee),
+				GasTipCap: perGas,
+				Data:      nil,
+				V:         common.Big1,
+				R:         common.Big1,
+				S:         common.Big1,
 			}
 
+			if dynamicTx.Gas, err = s.node.GetDefaultGasLimit(req.Chain); err != nil {
+				log.Println("Failed To Get DefaultGasLimit", err.Error())
+				return common.Hash{}, err
+			} else if dynamicTx.ChainID, err = s.node.GetChainID(req.Chain); err != nil {
+				log.Println("Failed To Get ChainId", err.Error())
+				return common.Hash{}, err
+			} else {
+				tx := etypes.NewTx(dynamicTx)
+				return signer.Hash(tx), nil
+			}
+		}
+	}
+
+}
+
+func (s *Service) SendSignedTx(req SignedTxReq, from string) error {
+	hash := common.HexToHash(req.Hash)
+	fromAddress := common.HexToAddress(from)
+
+	if signer, err := s.node.GetSigner(req.Chain); err != nil {
+		log.Println("Failed To Get Signer", err.Error())
+		return err
+	} else if publicKey, err := crypto.Ecrecover(hash[:], req.Sign); err != nil {
+		log.Println("Failed To Ecrecover", err.Error())
+		return err
+	} else if txBytes, err := hexutil.Decode(req.Tx); err != nil {
+		log.Println("Failed To Decode Tx", err.Error())
+		return err
+	} else {
+
+		var unSignTx *etypes.Transaction
+		recoveredPublicKey := crypto.Keccak256(publicKey[1:])[12:]
+
+		if ok := bytes.Equal(fromAddress[:], recoveredPublicKey); !ok {
+			return fmt.Errorf("Failed To From Valid")
+		} else if err := json.Unmarshal(txBytes, &unSignTx); err != nil {
+			log.Println("Failed To UnMarshal txBytes to unsignTx", err.Error())
+			return err
 		}
 
-		return common.Hash{}, nil
+		r, _s, v, err := signer.SignatureValues(unSignTx, req.Sign)
+		if err != nil {
+			log.Println("Failed To SignatureValues", err.Error())
+			return err
+		}
+
+		tx := etypes.NewTx(&etypes.DynamicFeeTx{
+			ChainID:   unSignTx.ChainId(),
+			Nonce:     unSignTx.Nonce(),
+			GasTipCap: unSignTx.GasTipCap(),
+			GasFeeCap: unSignTx.GasFeeCap(),
+			Gas:       unSignTx.Gas(),
+			To:        unSignTx.To(),
+			Data:      unSignTx.Data(),
+			Value:     unSignTx.Value(),
+			V:         v,
+			R:         r,
+			S:         _s,
+		})
+
+		if err = s.node.SendTransaction(req.Chain, tx); err != nil {
+			log.Println("Failed To Send Tx", err.Error())
+			return err
+		} else {
+			return nil
+		}
+
 	}
+
 }
 
 func (s *Service) GetLatestBlockNumber(chain string) (uint64, error) {

@@ -111,4 +111,16 @@ func (t *tx) unSign(c *gin.Context) {
 
 }
 
-func (t *tx) sendTx(c *gin.Context) {}
+func (t *tx) sendTx(c *gin.Context) {
+	var req types.SignedTxReq
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response(c, http.StatusUnprocessableEntity, nil, err.Error())
+	} else if from, err := getAddressByToken(c, t.gRPCClient); err != nil {
+		response(c, http.StatusUnprocessableEntity, nil, err.Error())
+	} else if err = t.service.SendSignedTx(req, from); err != nil {
+		response(c, http.StatusInternalServerError, nil, err.Error())
+	} else {
+		response(c, http.StatusOK, nil, "")
+	}
+}
